@@ -1,0 +1,436 @@
+"""
+@author: maciej_sliz
+# FIRST PROJECT - BOSTON HOUSE PRICES
+# https://www.dezyre.com/article/top-10-machine-learning-projects-for-beginners/397#boston
+# Project Boston House Prices with:
+# - OLS
+# - Ridge Regression
+# Perform Cross Validation
+"""
+
+# Import packages
+from sklearn.datasets import load_boston
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import statsmodels.formula.api as sm
+
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import ShuffleSplit
+from sklearn.model_selection import cross_val_predict
+from sklearn import linear_model
+from sklearn.linear_model import LinearRegression
+from sklearn import model_selection
+from sklearn import metrics
+from sklearn import preprocessing
+from sklearn import datasets
+from sklearn.metrics import mean_squared_error
+
+from sklearn.model_selection import KFold
+
+################################### FUNCTIONS ############################################
+# Function to plot actuals vs fitted
+def plot_act_vs_fitted(actuals, ols_result):
+    
+    predicted_values = pd.DataFrame(ols_result.predict())
+
+    # Plot actuals vs fitted
+    plt.plot(actuals, label = "Actuals")
+    plt.plot(predicted_values, label = "Fitted", c = 'r')
+    plt.legend()
+    plt.show()
+
+# Function to plot residuals
+def plot_residuals(actuals, ols_result):
+    
+    predicted_values = pd.DataFrame(ols_result.predict())
+    residuals = actuals - predicted_values
+    # Plot actuals vs fitted
+    plt.plot(residuals[0], label = "Residuals")
+    plt.legend()
+    plt.show()
+
+# Function to plot scatter of Y against X
+def scatter_x_y(X, Y, X_name):
+    plt.scatter(X,Y)
+    plt.xlabel(X_name)
+    plt.ylabel("Prices")
+    plt.legend()
+    plt.show()
+
+# Function to fit model on train and test sets
+def fit_train_test(X, Y, model = LinearRegression(), test_size = 0.3, random_state =42):
+
+    X_train, X_test, y_train, y_test = train_test_split(X,Y, test_size=test_size, random_state=random_state)
+
+    model = model
+    model.fit(X_train, y_train)
+    
+    # Predicted values
+    predictions_test = pd.DataFrame(model.predict(X_test))[0]
+    predictions_train = pd.DataFrame(model.predict(X_train))[0]
+    predictions_full = pd.DataFrame(model.predict(X))[0]
+    
+    return(X_train, X_test, y_train, y_test, predictions_test, predictions_train, predictions_full, model)
+
+# Function to calculate accuracy measure (MSE) and plot
+def accuracy_mse(X, Y, X_test, y_test, X_train, y_train, model, predictions_full):
+
+    print("MODEL =", model)
+    # The accuracy
+    print("Accuracy in testing set")
+    model = model.fit(X,Y)
+    print(model.score(X_test, y_test))
+    
+    # Visualize train set vs test set results
+    # Remove indexes such that the correct values of actuals and fitted are matched
+    y_train_df = pd.DataFrame(y_train)
+    y_train_df['new_index'] = range(0,len(y_train))
+    y_train_df = y_train_df.set_index('new_index')
+    
+    # print(y_train_df.head())
+    # print(predictions_train.head())
+    plt.plot(y_train_df, c = 'blue', label = "Actuals training set")
+    plt.plot(predictions_train, c = 'red', label = "Fitted training set")
+    plt.legend()
+    plt.show()
+    
+    # Test
+    y_test_df = pd.DataFrame(y_test)
+    y_test_df['new_index'] = range(0,len(y_test))
+    y_test_df = y_test_df.set_index('new_index')
+    
+    # print(y_test_df.head())
+    # print(predictions.head())
+    
+    plt.plot(y_test_df, c = 'blue', label = "Actuals testing set")
+    plt.plot(predictions_test, c = 'red', label = "Fitted testing set")
+    plt.legend()
+    plt.show()
+    
+    # Training and Validating
+    plt.scatter(Y, model.predict(X),s=5)
+    plt.xlabel("Prices")
+    plt.ylabel("Predicted Prices")
+    plt.title("Real vs Predicted Housing Prices, model" + str(model))
+    plt.show()
+    mse = mean_squared_error(Y,predictions_full)
+    print("**********************************************************************")
+    print("Mean squared error = ", mse)
+    
+    print(X_train.shape, X_test.shape, y_train.shape, y_test.shape)
+    print("mse_train = ", np.mean((y_train-model.predict(X_train))**2))
+    print("mse_test = ", np.mean((y_test-model.predict(X_test))**2))
+    print("**********************************************************************")
+    
+    res_train = model.predict(X_train) - y_train
+    res_test = model.predict(X_test) - y_test
+    
+    plt.scatter(predictions_train, res_train['target'],c ='b', s=30, alpha=0.4)
+    plt.scatter(predictions_test, res_test['target'],c ='g', s=30)
+    plt.hlines( y=0, xmin=-5, xmax=55)
+    plt.title("Residuals, model" + str(model))
+    plt.xlabel("Residuals TRAIN")
+    plt.ylabel("Residuals TEST")
+    plt.legend()
+    plt.show()
+    
+
+# Another option is to use an iterable yielding (train, test) splits as arrays of indices, for example:
+def custom_csv_2folds(X, n_split = 10):
+    n = X.shape[0]
+    i = 1
+    while i <= n_split:
+        idx = np.arange(n * (i - 1) / n_split, n * i / n_split, dtype = int)
+        yield idx, idx
+        i += 1
+
+# Function for cross validation
+def crossvalidation(X, Y, X_test, y_test, X_train, y_train, model, n_splits = 10, test_size=0.3, random_state=42, cv = 10, scoring = 'r2'):
+    
+    print("MODEL =", model)
+    scores = cross_val_score(model, X, Y, cv=cv,  scoring=scoring)
+    print("**********************************************************************")
+    print("Cross Validation")
+    print("Scores", scores)
+    print("**********************************************************************")
+    
+    # The mean score and the 95% confidence interval of the score estimate are hence given by:
+    print("**********************************************************************")
+    print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std()))
+    print("**********************************************************************")
+    
+    # It is also possible to use other cross validation strategies by passing a cross validation iterator instead, for instance:
+    n_samples = X.shape[0]
+    cv = ShuffleSplit(n_splits=n_splits, test_size=test_size, random_state=random_state)
+    print("**********************************************************************")
+    print("Cross validation strategies by passing a cross validation iterator instead")
+    print(cross_val_score(model, X, Y, cv=cv))
+    # Check the shuffle
+    #for train_index, test_index in cv.split(X):
+    #    print("TRAIN:", train_index)
+    #    print("TEST:", test_index)
+    print("**********************************************************************")
+
+    # Another option is to use an iterable yielding (train, test) splits as arrays of indices, for example:
+    custom_cv = custom_csv_2folds(X)
+    print("**********************************************************************")
+    print("Cross validation strategies by using iterable splits: ")
+    print(cross_val_score(model, X, Y, cv=custom_cv))
+    print("**********************************************************************")
+    
+    # Data transformation with held out data
+    # Just as it is important to test a predictor on data held-out from training, preprocessing (such as standardization, feature selection, 
+    # etc.) and similar data transformations similarly should be learnt from a training set and applied to held-out data for prediction:
+    scaler = preprocessing.StandardScaler().fit(X)
+    X_train_transformed = scaler.transform(X)
+    linR_preprocess = LinearRegression()
+    linR_preprocess.fit(X_train_transformed, Y)
+    X_transformed = scaler.transform(X)
+    print("**********************************************************************")
+    print("Cross validation, preprocess data before: ")
+    print(linR_preprocess.score(X_transformed, Y))
+    print(cross_val_score(linR_preprocess, X, Y, cv=cv))
+    print("**********************************************************************")
+    
+    #A Pipeline makes it easier to compose estimators, providing this behavior under cross-validation:
+    from sklearn.pipeline import make_pipeline
+    linR_pipeline = make_pipeline(preprocessing.StandardScaler(), model)
+    print("**********************************************************************")
+    print("Cross validation, pipeline: ")
+    print(cross_val_score(linR_pipeline, X, Y, cv=cv))
+    print("**********************************************************************")
+    
+    # K - fold cross validation
+    # https://machinelearningmastery.com/how-to-configure-k-fold-cross-validation/
+    from sklearn.model_selection import KFold
+    # prepare the cross-validation procedure
+    cv = KFold(n_splits=n_splits, random_state=random_state, shuffle=True)
+    print(cv)
+    # evaluate model
+    scores = cross_val_score(model, X, Y, cv=cv)
+    # report performance
+    print('K Fold cross validation, n splits = ', n_splits)
+    print('Accuracy: %.3f (%.3f)' % (scores.mean(), scores.std()))
+    
+    
+    # PLOT PREDICTIONS
+    # TRAIN
+    model.fit(X_train, y_train)
+    predicted_train = cross_val_predict(model, X_train, y_train, cv = cv)
+    
+    fig, ax = plt.subplots()
+    y_train_df = pd.DataFrame(y_train)
+    predicted_train_df = pd.DataFrame(predicted_train)
+    
+    ax.scatter(y_train_df['target'], predicted_train_df[0], edgecolors = (0,0,0))
+    ax.plot([y_train_df['target'].min(),y_train_df['target'].max()],[y_train_df['target'].min(),y_train_df['target'].max()], 'k--', lw=4)
+    ax.set_title('Measured vs Predicted - TRAIN - for ' +  str(model))
+    ax.set_xlabel('Measured - TRAIN')
+    ax.set_ylabel('Predicted - TRAIN')
+    plt.show()
+    
+    # TEST
+    predicted_test = cross_val_predict(model, X_test, y_test, cv = cv)
+    
+    fig, ax = plt.subplots()
+    y_test_df = pd.DataFrame(y_test)
+    predicted_test_df = pd.DataFrame(predicted_test)
+    
+    ax.scatter(y_test_df['target'], predicted_test_df[0], edgecolors = (0,0,0))
+    ax.plot([y_test_df['target'].min(),y_test_df['target'].max()],[y_test_df['target'].min(),y_test_df['target'].max()], 'k--', lw=4)
+    ax.set_title('Measured vs Predicted - TEST - for ' +  str(model))
+    ax.set_xlabel('Measured - TEST')
+    ax.set_ylabel('Predicted - TEST')
+    plt.show()
+    
+    # FULL
+    predicted_full = cross_val_predict(model, X, Y, cv = cv)
+    
+    fig, ax = plt.subplots()
+    y_df = pd.DataFrame(Y)
+    predicted_full_df = pd.DataFrame(predicted_full)
+    
+    ax.scatter(y_df['target'], predicted_full_df[0], edgecolors = (0,0,0))
+    ax.plot([y_df['target'].min(),y_df['target'].max()],[y_df['target'].min(),y_df['target'].max()], 'k--', lw=4)
+    ax.set_title('Measured vs Predicted - FULL - for ' +  str(model))
+    ax.set_xlabel('Measured - FULL')
+    ax.set_ylabel('Predicted - FULL')
+    plt.show()
+
+###########################################################################################
+################################### DATA ##################################################
+###########################################################################################
+
+# Load boston dataset
+boston = load_boston()
+# Print out main characteristics
+print(boston.keys())
+print(boston.data.shape)
+print(boston.feature_names)
+print(boston.DESCR)
+# Convert boston dataset to pandas dataframe
+boston_DF = pd.DataFrame(boston.data)
+# Add column names
+boston_DF.columns = boston.feature_names
+print(boston_DF.head())
+print(boston_DF.columns)
+# The dependant variable/outcome is the target and it is named as boston_y
+Y = pd.DataFrame(boston.target, columns = ['target'])
+# Both the dataframes are combined and named as boston_combine
+boston_combine = boston_DF.join(Y)
+# Define X matrix
+X = boston_combine.drop('target', axis = 1 )
+print(boston_combine.head())
+# Plot house prices (target)
+Y.plot(label = "Target", figsize = (12,8))
+
+# Minimum price of the data
+minimum_price = np.min(Y)
+
+# Maximum price of the data
+maximum_price = np.max(Y)
+
+# Mean price of the data
+mean_price = np.mean(Y)
+
+# Median price of the data
+median_price = np.median(Y)
+
+# Standard deviation of prices of the data
+std_price = np.std(Y)
+
+# Show the calculated statistics
+print("Statistics for Boston housing dataset:\n")
+print("Minimum price: ${}".format(minimum_price)) 
+print("Maximum price: ${}".format(maximum_price))
+print("Mean price: ${}".format(mean_price))
+print("Median price ${}".format(median_price))
+print("Standard deviation of prices: ${}".format(std_price))
+###########################################################################################
+################################### PREELIMINARY ANALYSIS #################################
+###########################################################################################
+
+# Calculate correlations of potential drivers with target
+# https://datatofish.com/correlation-matrix-pandas/
+corrMatrix = boston_combine.corr()
+sns.heatmap(corrMatrix, annot=True)
+plt.show()
+# POSITIVE CORRELATION WITH:
+pos_corr = np.transpose(corrMatrix[-1:][(corrMatrix[-1:][corrMatrix.columns] >= 0)])
+# Remove NaNs
+pos_corr = pos_corr.dropna()
+# print(pos_corr)
+# NEGATIVE CORRELATION WITH:
+neg_corr = np.transpose(corrMatrix[-1:][(corrMatrix[-1:][corrMatrix.columns] <= 0)])
+# Remove NaNs
+neg_corr = neg_corr.dropna()
+# print(neg_corr)
+
+# Calculate and show pairplot
+sns.pairplot(boston_combine[['RM','LSTAT','PTRATIO', 'target']], size=2.5)
+plt.tight_layout()
+plt.show()
+
+# PLOT SCATTER PLOTS OF Y against X
+# STRONG CORRELATION
+scatter_x_y(boston_combine['LSTAT'], boston_combine['target'], '% lower status of the population')  # from 7.5%, before no significant relationship
+scatter_x_y(boston_combine['PTRATIO'],boston_combine['target'],  'PTRATIO')
+scatter_x_y(boston_combine['RM'], boston_combine['target'],  'rooms')
+
+# Check separately relationship with LSTAT up to 7.5% and from 7.5%
+scatter_x_y(boston_combine[boston_combine['LSTAT'] > 7.5]['LSTAT'], boston_combine[boston_combine['LSTAT'] > 7.5]['target'], 'SQR % lower status of the population')
+scatter_x_y(boston_combine[boston_combine['LSTAT'] < 7.5]['LSTAT'], boston_combine[boston_combine['LSTAT'] < 7.5]['target'], 'SQR % lower status of the population')
+###########################################################################################
+################################### OLS REGRESSIONS #######################################
+###########################################################################################
+
+# RUN OLS WITH ALL VARIABLES (FULL SAMPLE)
+# https://stackoverflow.com/questions/19991445/run-an-ols-regression-with-pandas-data-frame
+OLS_result = sm.ols(formula="target ~ CRIM + ZN + INDUS + CHAS + NOX + RM + AGE + DIS + RAD + TAX + PTRATIO + B + LSTAT", data=boston_combine).fit()
+print(OLS_result.summary())
+# PLot actuals/fitted
+plot_act_vs_fitted(boston_combine['target'],OLS_result)
+plot_residuals(boston_combine['target'],OLS_result)
+
+# Drop insignificant variables (INDUS, AGE)
+OLS_result_2 = sm.ols(formula="target ~ CRIM + ZN + CHAS + NOX + RM + DIS + RAD + TAX + PTRATIO + B + LSTAT", data=boston_combine).fit()
+print(OLS_result_2.summary())
+# Plot actuals/fitted
+plot_act_vs_fitted(boston_combine['target'],OLS_result_2)
+plot_residuals(boston_combine['target'],OLS_result_2)
+# Leave the four variables with the highest t in abs terms (LSTAT, RM, PTRATIO)
+OLS_result_3 = sm.ols(formula="target ~ RM + LSTAT + PTRATIO", data=boston_combine).fit()
+print(OLS_result_3.summary())
+# Plot actuals/fitted
+plot_act_vs_fitted(boston_combine['target'],OLS_result_3)
+plot_residuals(boston_combine['target'],OLS_result_3)
+###########################################################################################
+################################### OLS REGRESSION TRAIN/TEST SETS ########################
+###########################################################################################
+
+# Run OLS on training set and then check it on test set (70% of data to training)
+# From X, select only three variables (LSTAT, RM and PTRATIO)
+X = X[['LSTAT', 'RM', 'PTRATIO']]
+X_train, X_test, y_train, y_test, predictions_test, predictions_train, predictions_full_LR, model_LR =  fit_train_test(X, Y, model = LinearRegression(), test_size = 0.3, random_state =42)
+###########################################################################################
+################################### ACCURACY MEASURES #####################################
+###########################################################################################
+
+accuracy_mse(X, Y, X_test, y_test, X_train, y_train, model = model_LR, predictions_full = predictions_full_LR)
+###########################################################################################
+################################### CROSS VALIDATION ######################################
+###########################################################################################
+
+# Cross validation - metrics
+# https://scikit-learn.org/stable/modules/cross_validation.html
+crossvalidation(X, Y, X_test, y_test, X_train, y_train, model = model_LR, n_splits = 10, test_size=0.3, random_state=42, cv = 10, scoring = 'r2')
+# Linear Regression can predict negative value of price:
+predicted_test_df = pd.DataFrame(predictions_test)
+print(predicted_test_df[0].min())
+###########################################################################################
+###########################################################################################
+# ################################## RIDGE REGRESSION #####################################
+###########################################################################################
+
+X_train, X_test, y_train, y_test, ridge_predictions_test, ridge_predictions_train, ridge_predictions_full, model_Ridge =  fit_train_test(X, Y, model = linear_model.Ridge(alpha=.5), test_size = 0.3, random_state =42)
+###########################################################################################
+################################### ACCURACY MEASURES #####################################
+###########################################################################################
+
+accuracy_mse(X, Y, X_test, y_test, X_train, y_train, model = model_Ridge, predictions_full = ridge_predictions_full)
+###########################################################################################
+# K Fold Cross Validation - Sensitivity wrt k parameter
+###########################################################################################
+# Linear Regression
+# Evaluate the model using a given test condition
+def evaluate_model(cv, X, y, model):
+	# evaluate the model
+	scores = cross_val_score(model, X, y, cv=cv)
+	# return scores
+	return np.mean(scores), scores.min(), scores.max()
+
+# Model Performance
+crossvalidation = KFold(n_splits=10, shuffle=True, random_state=42)
+performance, _, _ = evaluate_model(crossvalidation, X, Y, LinearRegression())
+print('Performance: %.3f' % performance)
+# Test the k values from from 5 to 50
+folds = range(5,50)
+# record mean and min/max of each set of results
+means, mins, maxs = list(),list(),list()
+# evaluate each k value
+for k in folds:
+	cv = KFold(n_splits=k, shuffle=True, random_state=42)
+	k_mean, k_min, k_max = evaluate_model(cv, X, Y, LinearRegression())
+	print('> folds=%d, accuracy=%.3f (%.3f,%.3f)' % (k, k_mean, k_min, k_max))
+	means.append(k_mean)
+	mins.append(k_mean - k_min)
+	maxs.append(k_max - k_mean)
+
+plt.errorbar(folds, means, yerr=[mins, maxs], fmt='o')
+plt.plot(folds, [performance for _ in range(len(folds))], color='r')
+plt.show()
+
